@@ -1,0 +1,17 @@
+*.exe
+*.out
+
+*.tmp
+*.temp
+
+.idea/
+.vscode/
+
+go.work
+
+*.log
+
+.DS_Store
+Thumbs.db
+
+.env
