@@ -7,22 +7,22 @@ import (
 )
 
 func main() {
+    client := coinlore.NewClient("https://api.coinlore.net")
+    s := services.NewCoinService(client, nil)
 
-	client := coinlore.NewClient("https://api.coinlore.net")
+    state := make(chan services.ServiceState)
 
-	s := services.NewCoinService(client, nil)
+    go s.Start(state)
 
-	state := make(chan services.ServiceState)
-
-	s.Start(state)
-
-	for msg := range state {
-		switch msg {
-		case services.Running:
-			logger.Info("Service is running")
-		case services.Stopped:
-			close(state)
-		}
-	}
-
+    for msg := range state {
+        switch msg {
+        case services.Running:
+            logger.Info("Service is running")
+        case services.Stopped:
+            logger.Info("Service has stopped")
+            return
+        case services.FailedPrefetchSymbols:
+            logger.Error("Failed to prefetch symbols")
+        }
+    }
 }
