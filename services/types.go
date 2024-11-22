@@ -13,3 +13,13 @@ type CoinService struct {
 	cache   sync.Map
 	symbols sync.Map
 }
+
+type ServiceState string
+
+const (
+	Waiting               ServiceState = "Waiting"
+	Ready                 ServiceState = "Ready"
+	Running               ServiceState = "Running"
+	Stopped               ServiceState = "Stopped"
+	FailedPrefetchSymbols ServiceState = "FailedPrefetchSymbols"
+)

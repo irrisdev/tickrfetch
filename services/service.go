@@ -18,25 +18,81 @@ func NewCoinService(client *coinlore.Client, limiter *rate.Limiter) *CoinService
 	}
 }
 
-func (s *CoinService) GetCoin(symbol string) (*coinlore.Coin, error) {
+func (s *CoinService) GetCoin(symbol string) *coinlore.Coin {
 	symbol = strings.ToUpper(symbol)
 	symbol = strings.ReplaceAll(symbol, " ", "")
 
-	return nil, fmt.Errorf("$%s not found", symbol)
+	if coin, ok := s.cache.Load(symbol); ok {
+		return coin.(*coinlore.Coin)
+	}
+
+	if symbolID, ok := s.symbols.Load(symbol); ok {
+		coin, err := s.client.GetCoin(symbolID.(int))
+		if err != nil {
+			logger.WithFields(logrus.Fields{
+				"symbol":    symbol,
+				"symbol_id": symbolID,
+				"error":     err,
+			}).Error("Failed to fetch coin by symbol")
+			return nil
+		}
+		return coin
+	}
+	return nil
 }
 
-// func (s *CoinService) FetchCoin(symbol string) error {
+func (s *CoinService) Start(c chan ServiceState) {
+	logger.Info("Starting coin service")
 
-// 	coin, err := s.client.GetCoin(symbol)
-// 	if err != nil {
-// 		logger.Error("failed to fetch coin: ", err)
-// 		return fmt.Errorf("failed to fetch coin: %v", err)
-// 	}
-// 	logger.Info("fetched coin: ", coin.Name)
-// 	return nil
-// }
+	go s.prefetch(c)
 
-func (s *CoinService) Start(c chan string) {
+	if <-c == Ready {
+		go s.fetchCycle(c)
+	}
+
+}
+
+func (s *CoinService) prefetch(c chan ServiceState) {
+	logger.Info("Prefetching coins and symbols")
+
+	err := s.fetchHotCoins()
+	if err != nil {
+		logger.Error("Failed to prefetch hot coins: ", err)
+		c <- Stopped
+		return
+	}
+
+	c <- Ready
+
+	err = s.fetchSymbols()
+	if err != nil {
+		logger.Error("Failed to prefetch symbols: ", err)
+		c <- FailedPrefetchSymbols
+	}
+
+	c <- Running
+
+}
+
+func (s *CoinService) fetchCycle(c chan ServiceState) {
+	hotSchedule := time.NewTicker(1 * time.Second)
+	coldSchedule := time.NewTicker(24 * time.Hour)
+	defer hotSchedule.Stop()
+	defer coldSchedule.Stop()
+
+	for {
+		select {
+		case <-hotSchedule.C:
+			go s.fetchHotCoins()
+		case <-coldSchedule.C:
+			go s.fetchSymbols()
+		case _, ok := <-c:
+			if !ok {
+				logger.Info("Channel closed, stopping service")
+				return
+			}
+		}
+	}
 
 }
 
@@ -51,7 +107,16 @@ func (s *CoinService) fetchHotCoins() error {
 		s.cache.Store(coin.Symbol, &coin)
 	}
 
-	logger.Info("fetched top coins: ", len(*coins))
+	s.cache.Store("lastfetch", time.Now())
+
+	if len(*coins) != 100 {
+		logger.WithFields(logrus.Fields{
+			"total":   100,
+			"fetched": len(*coins),
+		}).Warn("Partially fetched hot coins")
+	} else {
+		logger.Info("Fetched hot coins successfully")
+	}
 
 	return nil
 }
@@ -101,6 +166,8 @@ func (s *CoinService) fetchSymbols() error {
 	for _, coin := range results {
 		s.symbols.Store(coin.Symbol, coin.ID)
 	}
+
+	s.symbols.Store("lastfetch", time.Now())
 
 	if len(results) != global.CoinsCount {
 
