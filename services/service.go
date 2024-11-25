@@ -41,25 +41,29 @@ func (s *CoinService) GetCoin(symbol string) *coinlore.Coin {
 	return nil
 }
 
-func (s *CoinService) Start(c chan ServiceState) {
+func (s *CoinService) Start(c chan ServiceState, coldcoins bool) {
 	logger.Info("Starting coin service")
 	logger.Info("Prefetching coins and symbols")
-	c <- Stopped
+
 	err := s.fetchHotCoins()
 	if err != nil {
 		logger.Error("Failed to prefetch hot coins: ", err)
 		c <- Stopped
 		return
 	}
+	c <- Running
 
 	go s.fetchCycle(c)
 
-	err = s.fetchSymbols()
-	if err != nil {
-		logger.Error("Failed to prefetch symbols: ", err)
-		c <- FailedPrefetchSymbols
-	}
+	s.symbols.Store("prefetched", true)
 
+	if coldcoins {
+		err = s.fetchSymbols()
+		if err != nil {
+			logger.Error("Failed to prefetch symbols: ", err)
+			s.symbols.Store("prefetched", false)
+		}
+	}
 }
 
 func (s *CoinService) fetchCycle(c chan ServiceState) {
@@ -169,4 +173,11 @@ func (s *CoinService) fetchSymbols() error {
 	}
 
 	return nil
+}
+
+func (s *CoinService) Prefetched() bool {
+	if val, ok := s.symbols.Load("prefetched"); ok {
+		return val.(bool)
+	}
+	return false
 }

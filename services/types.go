@@ -17,7 +17,6 @@ type CoinService struct {
 type ServiceState string
 
 const (
-	Running               ServiceState = "Running"
-	Stopped               ServiceState = "Stopped"
-	FailedPrefetchSymbols ServiceState = "FailedPrefetchSymbols"
+	Running ServiceState = "Running"
+	Stopped ServiceState = "Stopped"
 )
