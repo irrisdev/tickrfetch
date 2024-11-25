@@ -1,17 +1,17 @@
-FROM golang:1.23 AS builder
+FROM golang:1.23 AS build
 
 WORKDIR /app
 
-COPY . .
+COPY go.mod go.sum ./
 
 RUN go mod download
 
-RUN go build -o tickrbot .
+COPY . .
 
-FROM alpine:latest
+RUN CGO_ENABLED=0 GOOS=linux go build -o main
 
-WORKDIR /app
+FROM scratch
 
-COPY --from=builder /app/tickrbot .
+COPY --from=build /app/main /main
 
-CMD ["./tickrbot"]
+ENTRYPOINT ["/main"]

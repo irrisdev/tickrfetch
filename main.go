@@ -145,6 +145,6 @@ func escapeMarkdown(text string) string {
 func init() {
 	err := godotenv.Load()
 	if err != nil {
-		logger.Fatal("Error loading .env file")
+		logger.Error("Error loading .env file")
 	}
 }
