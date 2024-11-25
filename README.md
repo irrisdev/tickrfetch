@@ -40,7 +40,7 @@ docker build -t tickrfetch .
 Run the Docker container in detached mode:
 
 ```sh
-docker run -d --name tickrfetch-container tickrfetch
+docker run -d --name tickrfetch-container --env-file .env tickrfetch
 ```
 
 ### Verify the Container is Running
